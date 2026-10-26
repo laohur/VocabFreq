@@ -2,12 +2,14 @@
 
 数据布局：每个语种一个 gzip 压缩的 MessagePack 数组
 ``[header, band_0, ..., band_699]``，band b 内的词频约为 ``10^(-b/100)``
-（centibel b）。数据不随包分发——只有一份，位于仓库 ``data/wordfreq/``
-（构建产物，gitignore），包内通过以下顺序解析数据目录：
+（centibel b）。数据不随包分发，按需从 Hugging Face（默认 hf-mirror.com
+镜像，见 :mod:`vocabfreq.download`）下载并缓存，目录解析顺序：
 
 1. :func:`set_data_dir` 显式指定
 2. 环境变量 ``VOCABFREQ_DATA``（指向含 ``meta.json`` 的目录）
 3. 仓库内默认路径（源码 / editable 安装时可用）
+4. 缓存目录 ``~/.vocabfreq``（缺失的文件在 :func:`load` /
+   :func:`available_languages` 时自动按需下载）
 """
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ import os
 from pathlib import Path
 
 import msgpack
+
+from .download import DEFAULT_DATA_DIR, download as _download
 
 N_BANDS = 700
 
@@ -112,7 +116,8 @@ def set_data_dir(path: str | Path) -> None:
 
 
 def get_data_dir() -> Path:
-    """解析当前数据目录，找不到时抛 :class:`FileNotFoundError`。"""
+    """解析当前数据目录。前三级找不到时回落到缓存目录 ``~/.vocabfreq``
+    （其中的文件会在 :func:`load` / :func:`available_languages` 时按需下载）。"""
     if _DATA_DIR is not None:
         return _DATA_DIR
     env = os.environ.get("VOCABFREQ_DATA")
@@ -121,27 +126,31 @@ def get_data_dir() -> Path:
     default = Path(__file__).resolve().parent.parent / "data" / "wordfreq"
     if (default / "meta.json").exists():
         return default
-    raise FileNotFoundError(
-        "未找到词频数据目录：数据不随包分发（只有一份，见仓库 data/wordfreq）。"
-        "请设置环境变量 VOCABFREQ_DATA，或调用 vocabfreq.set_data_dir(...)。"
-    )
+    return DEFAULT_DATA_DIR
 
 
 def available_languages() -> dict[str, dict]:
-    """返回 ``meta.json`` 中的语种记录（kept / coverage / sources 等）。"""
-    meta = json_load(get_data_dir() / "meta.json")
-    return meta["languages"]
+    """返回 ``meta.json`` 中的语种记录（kept / coverage / sources 等）；
+    本地缺失时自动从 HF 下载。"""
+    d = get_data_dir()
+    if not (d / "meta.json").exists():
+        _download(langs=[], data_dir=d)
+    return json_load(d / "meta.json")["languages"]
 
 
 # ── 加载与查询 ──
 
 
 def load(lang: str, wordlist: str = "small") -> BandList:
-    """加载语种词表（按 (数据目录, 语种, wordlist) 缓存）。"""
-    root = str(get_data_dir().resolve())
+    """加载语种词表（按 (数据目录, 语种, wordlist) 缓存）；本地缺失时
+    自动从 HF 下载该语种。"""
+    d = get_data_dir()
+    path = d / "data" / f"{wordlist}_{lang}.msgpack.gz"
+    if not path.exists() and wordlist == "small":
+        _download([lang], data_dir=d)
+    root = str(d.resolve())
     key = (root, lang, wordlist)
     if key not in _CACHE:
-        path = get_data_dir() / "data" / f"{wordlist}_{lang}.msgpack.gz"
         with gzip.open(path, "rb") as f:
             obj = msgpack.unpackb(f.read(), raw=False)
         _CACHE[key] = BandList(lang, obj)

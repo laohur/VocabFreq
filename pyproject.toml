@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vocabfreq"
-version = "7.0.0"
+version = "7.1.0"
 description = "Self-built multi-language word frequency lists (700 centibel bands), wordfreq-style lookup API with band slicing."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,3 +27,6 @@ dev = ["pytest>=8"]
 
 [tool.setuptools]
 packages = ["vocabfreq"]
+
+[project.scripts]
+vocabfreq = "vocabfreq.__main__:main"

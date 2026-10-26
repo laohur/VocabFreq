@@ -45,3 +45,14 @@ def test_available_languages():
     langs = wordfreq.available_languages()
     assert {"zh", "en"} <= set(langs)
     assert langs["zh"]["kept"] > 0
+
+
+def test_resolve_url():
+    from vocabfreq.download import DEFAULT_ENDPOINT, resolve_url
+
+    assert resolve_url("meta.json") == (
+        f"{DEFAULT_ENDPOINT}/datasets/vocabradar/VocabFreq/resolve/main/meta.json"
+    )
+    assert resolve_url(
+        "data/small_zh.msgpack.gz", "https://huggingface.co/"
+    ) == "https://huggingface.co/datasets/vocabradar/VocabFreq/resolve/main/data/small_zh.msgpack.gz"

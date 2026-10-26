@@ -43,14 +43,18 @@ Debian/Ubuntu: `apt install libicu-dev`).
 ## Package usage
 
 The runtime package (`import vocabfreq`, distribution name `vocabfreq`) only
-needs `msgpack`. Install in editable mode from the repo (or set
-`VOCABFREQ_DATA` to the data directory when installed elsewhere — the data
-itself is not shipped with the package):
+needs `msgpack`. The data is not shipped with the package: on first use it is
+downloaded from the HF dataset `vocabradar/VocabFreq` — default mirror
+`https://hf-mirror.com` (override with `VOCABFREQ_ENDPOINT`), cached in
+`~/.vocabfreq` (override with `VOCABFREQ_DATA` or `set_data_dir`). `load(lang)`
+fetches just that language; `vocabfreq.download()` prefetches everything.
+Every file is byte-size and SHA-256 verified against the dataset's
+`files.json`, so downloads are resumable and repeatable.
 
-    pip install -e .
+    pip install vocabfreq            # or: pip install -e . from the repo
 
     >>> import vocabfreq
-    >>> vocabfreq.word_frequency('的', 'zh')
+    >>> vocabfreq.word_frequency('的', 'zh')   # auto-downloads zh (≈130 KB) on first use
     0.0427
     >>> vocabfreq.top_n_list('en', 3)
     ['the', 'of', 'and']
@@ -59,7 +63,14 @@ itself is not shipped with the package):
     >>> wf.words(0, 100)                  # words only, freq >= 1e-1
     >>> wf.frequency('le'); len(wf); wf[120:130]
 
-API: `word_frequency(word, lang)`, `top_n_list(lang, n)`,
+Command line (after install, or `python -m vocabfreq`):
+
+    vocabfreq                # download all 111 languages
+    vocabfreq en zh de       # download selected languages
+    vocabfreq --endpoint https://huggingface.co
+
+API: `download(langs=None, data_dir=None, endpoint=None)`,
+`word_frequency(word, lang)`, `top_n_list(lang, n)`,
 `iter_wordlist(lang)`, `get_frequency_dict(lang, min_cb, max_cb)`,
 `slice_words(lang, min_cb, max_cb)`, `available_languages()`,
 `load(lang) -> BandList` (`.slice / .words / .top_n / .frequency / bands[i:j]`).
