@@ -1,0 +1,24 @@
+# 数据只有一份，不进仓库（data/ 内含构建产物与工作文件）
+data/
+
+# 工作文件
+_sample_test/
+thres_*
+*.log
+_audit_errors.txt
+note.text
+inventory.json
+download_plan.json
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# 编辑器
+.vscode/
+.idea/
+*~

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vocabfreq"
+version = "7.0.0"
+description = "Self-built multi-language word frequency lists (700 centibel bands), wordfreq-style lookup API with band slicing."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "河狸记词 (VocabRadar)" }]
+keywords = ["word frequency", "wordlist", "nlp", "vocabulary", "msgpack"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "msgpack>=1.0",
+]
+
+[project.optional-dependencies]
+# 构建管线（scripts/）所需，运行时不需要
+pipeline = ["PyICU>=2.12", "pyarrow>=14"]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+packages = ["vocabfreq"]
