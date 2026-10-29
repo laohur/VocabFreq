@@ -188,6 +188,27 @@ codes verbatim (see `meta.json`).
 > 桶索引=cB），按覆盖率降序构建；仅收录词频达到百万分之一（覆盖率 >= 1e-6，
 > 即 cB <= 600）的词。
 
+## Python package
+
+These lists power the `vocabfreq` Python package. Data is not shipped
+with the package: on first use it is downloaded from this dataset
+(default mirror https://hf-mirror.com, override with `VOCABFREQ_ENDPOINT`),
+cached in `~/.vocabfreq`, and every file is verified against `files.json`
+(byte size + SHA-256).
+
+```bash
+pip install vocabfreq        # or: pip install -e . from the repo
+```
+
+```python
+import vocabfreq
+vocabfreq.word_frequency('的', 'zh')   # 0.0617 (auto-tier: small -> middle -> large)
+vocabfreq.top_n_list('en', 3)          # ['the', 'to', 'and']
+wf = vocabfreq.load('aai', wordlist='large')
+wf.slice(100, 200)                     # band slicing: cb in [100, 200)
+vocabfreq.download(['en', 'zh'])       # prefetch
+```
+
 ## Files
 
 ```
@@ -224,23 +245,6 @@ letter or mark — pure digits such as ISBNs and pure punctuation), `duplicate`
         md.append("### " + t + "\n\n")
         md.append(lang_table(t, stats[t]))
         md.append("\n\n")
-    md.append("## Python package\n\n"
-              "These lists power the `vocabfreq` Python package. Data is not shipped "
-              "with the package: on first use it is downloaded from this dataset "
-              "(default mirror https://hf-mirror.com, override with `VOCABFREQ_ENDPOINT`), "
-              "cached in `~/.vocabfreq`, and every file is verified against `files.json` "
-              "(byte size + SHA-256).\n\n"
-              "```bash\n"
-              "pip install vocabfreq        # or: pip install -e . from the repo\n"
-              "```\n\n"
-              "```python\n"
-              "import vocabfreq\n"
-              "vocabfreq.word_frequency('的', 'zh')   # 0.0617 (auto-tier: small -> middle -> large)\n"
-              "vocabfreq.top_n_list('en', 3)          # ['the', 'to', 'and']\n"
-              "wf = vocabfreq.load('aai', wordlist='large')\n"
-              "wf.slice(100, 200)                     # band slicing: cb in [100, 200)\n"
-              "vocabfreq.download(['en', 'zh'])       # prefetch\n"
-              "```\n\n")
     md.append("## Sources\n\n"
               "- data_small: HF dataset [vocabradar/wordfreq]"
               "(https://huggingface.co/datasets/vocabradar/wordfreq) — cleaned wordfreq "

@@ -37,6 +37,44 @@ lives in `../hf-upload/VocabFreq` and is published as the HF dataset
 （已 gitignore）；发布包在 `../hf-upload/VocabFreq`，已推送为 HF 数据集
 vocabradar/VocabFreq。
 
+## Package usage
+
+The runtime package (`import vocabfreq`, distribution name `vocabfreq`) only
+needs `msgpack`. The data is not shipped with the package: on first use it is
+downloaded from the HF dataset `vocabradar/VocabFreq` — default mirror
+`https://hf-mirror.com` (override with `VOCABFREQ_ENDPOINT`), cached in
+`~/.vocabfreq` (override with `VOCABFREQ_DATA` or `set_data_dir`).
+`load(lang)` fetches just that language (all tiers that have it);
+`vocabfreq.download()` prefetches everything. Every file is byte-size and
+SHA-256 verified against the dataset's `files.json`, so downloads are
+resumable and repeatable.
+
+    pip install vocabfreq            # or: pip install -e . from the repo
+
+    >>> import vocabfreq
+    >>> vocabfreq.word_frequency('的', 'zh')   # auto-tier: small → middle → large
+    0.0617
+    >>> vocabfreq.top_n_list('en', 3)
+    ['the', 'to', 'and']
+    >>> wf = vocabfreq.load('fr')                      # default small tier (43 langs)
+    >>> wf = vocabfreq.load('aai', wordlist='large')   # UniLex tier (1000 langs)
+    >>> wf.slice(100, 200)                # band slicing: cb in [100, 200) -> (word, freq)
+    >>> wf.words(0, 100)                  # words only, freq >= 1e-1
+    >>> wf.frequency('le'); len(wf); wf[120:130]
+
+Command line (after install, or `python -m vocabfreq`):
+
+    vocabfreq                # download all languages (three tiers)
+    vocabfreq en zh de       # download selected languages (all tiers that have them)
+    vocabfreq --endpoint https://huggingface.co
+
+API: `download(langs=None, data_dir=None, endpoint=None)`,
+`word_frequency(word, lang)`, `top_n_list(lang, n)`,
+`iter_wordlist(lang)`, `get_frequency_dict(lang, min_cb, max_cb)`,
+`slice_words(lang, min_cb, max_cb)`, `available_languages(tier='small')`,
+`load(lang, wordlist='small') -> BandList`
+(`.slice / .words / .top_n / .frequency / bands[i:j]`).
+
 ## Pipeline
 
     scripts/build_datas.py     # three sources → per-language TSV (word \t coverage) in data_<tier>/
@@ -57,6 +95,17 @@ scripts with hardcoded local paths).
     data_middle/   built TSVs, middle tier (gitignored)
     data_large/    built TSVs, large tier (gitignored)
     reports/       build reports (stats.json, per-tier CSVs)
+
+## Data format
+
+Each file `data_<tier>/<tier>_<lang>.msgpack.gz` is a wordfreq cBpack: a
+gzipped MessagePack array `[header, band_0, …, band_600]`, where band *b*
+holds the words whose coverage rounds to 10^(−b/100) (centibel *b*) and the
+header is `{"format": "cB", "version": 1}`. Files are readable with
+`wordfreq.read_cBpack`. Only words with coverage ≥ 1e-6 (cB ≤ 600) are kept,
+so each list has 601 bands. Cleaning rules (`unparsable` / `invalid` /
+`duplicate` / `below_threshold`) and per-language stats are in the dataset
+`meta.json`; every file is listed with size + SHA-256 in `files.json`.
 
 <!-- BEGIN GENERATED LANGUAGE TABLES -->
 ## Language lists
@@ -1481,55 +1530,6 @@ Code links point to the msgpack.gz file on HF (https://huggingface.co/datasets/v
 <!-- END GENERATED LANGUAGE TABLE:data_large -->
 
 <!-- END GENERATED LANGUAGE TABLES -->
-## Package usage
-
-The runtime package (`import vocabfreq`, distribution name `vocabfreq`) only
-needs `msgpack`. The data is not shipped with the package: on first use it is
-downloaded from the HF dataset `vocabradar/VocabFreq` — default mirror
-`https://hf-mirror.com` (override with `VOCABFREQ_ENDPOINT`), cached in
-`~/.vocabfreq` (override with `VOCABFREQ_DATA` or `set_data_dir`).
-`load(lang)` fetches just that language (all tiers that have it);
-`vocabfreq.download()` prefetches everything. Every file is byte-size and
-SHA-256 verified against the dataset's `files.json`, so downloads are
-resumable and repeatable.
-
-    pip install vocabfreq            # or: pip install -e . from the repo
-
-    >>> import vocabfreq
-    >>> vocabfreq.word_frequency('的', 'zh')   # auto-tier: small → middle → large
-    0.0617
-    >>> vocabfreq.top_n_list('en', 3)
-    ['the', 'to', 'and']
-    >>> wf = vocabfreq.load('fr')                      # default small tier (43 langs)
-    >>> wf = vocabfreq.load('aai', wordlist='large')   # UniLex tier (1000 langs)
-    >>> wf.slice(100, 200)                # band slicing: cb in [100, 200) -> (word, freq)
-    >>> wf.words(0, 100)                  # words only, freq >= 1e-1
-    >>> wf.frequency('le'); len(wf); wf[120:130]
-
-Command line (after install, or `python -m vocabfreq`):
-
-    vocabfreq                # download all languages (three tiers)
-    vocabfreq en zh de       # download selected languages (all tiers that have them)
-    vocabfreq --endpoint https://huggingface.co
-
-API: `download(langs=None, data_dir=None, endpoint=None)`,
-`word_frequency(word, lang)`, `top_n_list(lang, n)`,
-`iter_wordlist(lang)`, `get_frequency_dict(lang, min_cb, max_cb)`,
-`slice_words(lang, min_cb, max_cb)`, `available_languages(tier='small')`,
-`load(lang, wordlist='small') -> BandList`
-(`.slice / .words / .top_n / .frequency / bands[i:j]`).
-
-## Data format
-
-Each file `data_<tier>/<tier>_<lang>.msgpack.gz` is a wordfreq cBpack: a
-gzipped MessagePack array `[header, band_0, …, band_600]`, where band *b*
-holds the words whose coverage rounds to 10^(−b/100) (centibel *b*) and the
-header is `{"format": "cB", "version": 1}`. Files are readable with
-`wordfreq.read_cBpack`. Only words with coverage ≥ 1e-6 (cB ≤ 600) are kept,
-so each list has 601 bands. Cleaning rules (`unparsable` / `invalid` /
-`duplicate` / `below_threshold`) and per-language stats are in the dataset
-`meta.json`; every file is listed with size + SHA-256 in `files.json`.
-
 ## License
 
 Code: MIT (see [LICENSE](./LICENSE)). Dataset licenses differ per tier:
