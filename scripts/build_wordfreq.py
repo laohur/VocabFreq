@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 build_wordfreq.py — 把 F:/data/WordFrequency/wordfreq 的 top100k.txt (pyicu 分词产出)
-转成 hf-upload/wordfreq 同款 cB-msgpack 格式，写入 D:/code/河狸记词/data/WordFrequency/data/wordfreq/。
+转成 hf-upload/VocabFreq 同款 cB-msgpack 格式，写入 D:/code/河狸记词/data/VocabFreq/data/wordfreq/。
 
 数据源：本仓库 pyicu BreakIterator 分词结果（wiki ≥1GiB / fw2 ≥1GiB）
 语言：Python（不依赖 Node）
@@ -11,7 +11,7 @@ th：本统一管线产出（原 th_pipeline.py 弃用）
 收录：全量语种（不做体积筛选，meta 带全体积字段供下游筛选）；词门槛 fu_w>1e-6 且 fu_w/word_bytes>2e-7
 
 输出结构：
-  D:/code/河狸记词/data/WordFrequency/data/wordfreq/
+  D:/code/河狸记词/data/VocabFreq/data/wordfreq/
     meta.json
     data/small_<lang>.msgpack.gz   [header, band_0..band_699]  cB 格式
 """
@@ -23,7 +23,7 @@ import msgpack
 
 # ── I/O ─────────────────────────────────────────────────────
 FF         = Path(r"F:\data\WordFrequency\wordfreq")
-OUT_BASE   = Path(r"D:\code\河狸记词\data\WordFrequency\data\wordfreq")
+OUT_BASE   = Path(r"D:\code\河狸记词\data\VocabFreq\data\wordfreq")
 OUT_DATA   = OUT_BASE / "data"
 ONE_GIB    = 1024 ** 3
 CB_MAX     = 700  # cB 带数：band_k 收录 cB=k 的词（fu≈1e-(k/100)）
@@ -45,7 +45,7 @@ BCP47 = {
     "bul_Cyrl":"bg","cat_Latn":"ca","ces_Latn":"cs","ckb_Arab":"ckb","cmn_Hani":"zh",
     "cym_Latn":"cy","dan_Latn":"da","deu_Latn":"de","div_Thaa":"dv","ell_Grek":"el",
     "eng_Latn":"en","epo_Latn":"eo","est_Latn":"et","eus_Latn":"eu","fao_Latn":"fo",
-    "fas_Arab":"fa","fil_Latn":"tl","fin_Latn":"fi","fra_Latn":"fr","fry_Latn":"fy",
+    "fas_Arab":"fa","fil_Latn":"fil","fin_Latn":"fi","fra_Latn":"fr","fry_Latn":"fy",
     "gle_Latn":"ga","glg_Latn":"gl","gmh_Latn":"gmh","guj_Gujr":"gu","heb_Hebr":"he",
     "hif_Latn":"hif","hin_Deva":"hi","hrv_Latn":"hr","hun_Latn":"hu","hye_Armn":"hy",
     "ind_Latn":"id","isl_Latn":"is","ita_Latn":"it","jav_Latn":"jv","jpn_Jpan":"ja",
@@ -60,12 +60,13 @@ BCP47 = {
     "slk_Latn":"sk","slv_Latn":"sl","sna_Latn":"sn","snd_Arab":"sd","som_Latn":"so",
     "spa_Latn":"es","sqi_Latn":"sq","srp_Cyrl":"sr","srp_Latn":"sr","swa_Latn":"sw",
     "swe_Latn":"sv","swh_Latn":"sw","tam_Taml":"ta","tat_Cyrl":"tt","tel_Telu":"te",
-    "tgk_Cyrl":"tg","tha_Thai":"th","tgl_Latn":"tl","tur_Latn":"tr","uig_Arab":"ug",
+    "tgk_Cyrl":"tg","tha_Thai":"th","tgl_Latn":"fil","tur_Latn":"tr","uig_Arab":"ug",
     "ukr_Cyrl":"uk","urd_Arab":"ur","uzn_Cyrl":"uz","uzn_Latn":"uz","uzb_Latn":"uz",
     "vie_Latn":"vi","xho_Latn":"xh","ydd_Hebr":"yi","yid_Hebr":"yi","yor_Latn":"yo",
     "zho_Hant":"zh-Hant","zsm_Latn":"ms","zul_Latn":"zu",
     "ultrafineweb_en_l3":"en","ultrafineweb_zh_l3":"zh",
     "ekk_Latn":"et",  # Estonian (fine-grained code in fw2)
+    "tl":"fil",  # 旧 Tagalog wiki 目录名/旧语言代码 → 统一用 ISO 639-3 的 fil
 }
 def norm(code): return BCP47.get(code, code)
 
@@ -179,7 +180,7 @@ NFC_SCRIPTS = {"Latn", "Grek", "Cyrl"}
 SPACE_WORD_LANGS = {
     # 拉丁系
     "en","es","fr","de","pt","it","nl","pl","cs","sk","sl","hr","hu","ro","da","sv","nb","is","fi","et","lt","lv",
-    "ca","gl","sq","sr","bs","tr","az","id","ms","vi","af","sw","zu","xh","tl","jv","eu","br","co","wa","lb","fo",
+    "ca","gl","sq","sr","bs","tr","az","id","ms","vi","af","sw","zu","xh","fil","jv","eu","br","co","wa","lb","fo",
     "nn","ia","sa","la","kw","ga","cy","gd","mt",
     # 西里尔系
     "bg","uk","ru","mk","be","kk","ky","tg","uz","tk","ba","os","av","ce","ab",

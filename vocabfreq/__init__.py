@@ -1,4 +1,5 @@
-"""vocabfreq — 自建多语言词频表（700 centibel 频段，wordfreq 风格 msgpack 格式）。
+"""vocabfreq — 自建三档多语言词频表（small/middle/large 共 43/347/1000 语种，
+601 个 centibel 频段，wordfreq cBpack 格式）。
 
 数据不随包分发：首次使用时自动从 Hugging Face（默认 hf-mirror.com 镜像）
 按需下载并缓存到 ``~/.vocabfreq``（环境变量 ``VOCABFREQ_DATA`` /
@@ -11,6 +12,7 @@
     >>> vocabfreq.top_n_list("en", 3)
     ['the', ...]
     >>> vocabfreq.load("en").slice(100, 200)     # 频段切片
+    >>> vocabfreq.load("en", wordlist="large")   # 切换档位（small/middle/large）
 """
 
 from .data import (
@@ -28,7 +30,7 @@ from .data import (
 )
 from .download import download
 
-__version__ = "7.1.0"
+__version__ = "8.0.0"
 
 __all__ = [
     "N_BANDS",

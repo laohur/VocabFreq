@@ -54,5 +54,5 @@ def test_resolve_url():
         f"{DEFAULT_ENDPOINT}/datasets/vocabradar/VocabFreq/resolve/main/meta.json"
     )
     assert resolve_url(
-        "data/small_zh.msgpack.gz", "https://huggingface.co/"
-    ) == "https://huggingface.co/datasets/vocabradar/VocabFreq/resolve/main/data/small_zh.msgpack.gz"
+        "data_small/small_zh.msgpack.gz", "https://huggingface.co/"
+    ) == "https://huggingface.co/datasets/vocabradar/VocabFreq/resolve/main/data_small/small_zh.msgpack.gz"

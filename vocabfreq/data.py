@@ -1,8 +1,10 @@
 """词频数据加载与 BandList。
 
-数据布局：每个语种一个 gzip 压缩的 MessagePack 数组
-``[header, band_0, ..., band_699]``，band b 内的词频约为 ``10^(-b/100)``
-（centibel b）。数据不随包分发，按需从 Hugging Face（默认 hf-mirror.com
+数据布局：三档词表（small/middle/large），每档每语种一个 gzip 压缩的
+MessagePack 数组 ``[header, band_0, ..., band_600]``，band b 内的词频约为
+``10^(-b/100)``（centibel b）；收录阈值为百万分之一（1e-6，即 cB <= 600，
+共 601 个频段）。文件路径为 ``data_<tier>/<tier>_<lang>.msgpack.gz``。
+数据不随包分发，按需从 Hugging Face（默认 hf-mirror.com
 镜像，见 :mod:`vocabfreq.download`）下载并缓存，目录解析顺序：
 
 1. :func:`set_data_dir` 显式指定
@@ -19,9 +21,9 @@ from pathlib import Path
 
 import msgpack
 
-from .download import DEFAULT_DATA_DIR, download as _download
+from .download import DEFAULT_DATA_DIR, TIERS, download as _download
 
-N_BANDS = 700
+N_BANDS = 601  # cB 0..600：覆盖率 1e0..1e-6，收录阈值 1e-6（cB 600 桶）
 
 _DATA_DIR: Path | None = None
 _CACHE: dict[tuple[str, str, str], "BandList"] = {}
@@ -109,7 +111,7 @@ class BandList:
 
 
 def set_data_dir(path: str | Path) -> None:
-    """显式指定数据目录（含 ``meta.json`` 与 ``data/small_*.msgpack.gz``）。"""
+    """显式指定数据目录（含 ``meta.json`` 与 ``data_<tier>/<tier>_*.msgpack.gz``）。"""
     global _DATA_DIR
     _DATA_DIR = Path(path)
     _CACHE.clear()
@@ -124,30 +126,37 @@ def get_data_dir() -> Path:
     if env:
         return Path(env)
     default = Path(__file__).resolve().parent.parent / "data" / "wordfreq"
-    if (default / "meta.json").exists():
+    # 仅当为新结构（三档目录 + meta.json）时才使用仓库内默认路径
+    if (default / "meta.json").exists() and (default / "data_small").exists():
         return default
     return DEFAULT_DATA_DIR
 
 
-def available_languages() -> dict[str, dict]:
-    """返回 ``meta.json`` 中的语种记录（kept / coverage / sources 等）；
-    本地缺失时自动从 HF 下载。"""
+def available_languages(tier: str = "small") -> dict[str, dict]:
+    """返回 ``meta.json`` 中该档位（small/middle/large）的语种记录
+    （raw / kept / coverage 等清洗统计）；本地缺失时自动从 HF 下载。"""
     d = get_data_dir()
     if not (d / "meta.json").exists():
         _download(langs=[], data_dir=d)
-    return json_load(d / "meta.json")["languages"]
+    return json_load(d / "meta.json")["tiers"][f"data_{tier}"]["languages"]
 
 
 # ── 加载与查询 ──
 
 
 def load(lang: str, wordlist: str = "small") -> BandList:
-    """加载语种词表（按 (数据目录, 语种, wordlist) 缓存）；本地缺失时
-    自动从 HF 下载该语种。"""
+    """加载语种词表（``wordlist`` ∈ small/middle/large，按 (数据目录, 语种,
+    wordlist) 缓存）；本地缺失时自动从 HF 下载该语种。"""
+    if wordlist not in TIERS:
+        raise ValueError(f"wordlist 必须是 {'/'.join(TIERS)}，得到 {wordlist!r}")
     d = get_data_dir()
-    path = d / "data" / f"{wordlist}_{lang}.msgpack.gz"
-    if not path.exists() and wordlist == "small":
+    path = d / f"data_{wordlist}" / f"{wordlist}_{lang}.msgpack.gz"
+    if not path.exists():
         _download([lang], data_dir=d)
+    if not path.exists():
+        raise KeyError(
+            f"{lang}: {wordlist} 档未收录该语种"
+            f"（可用 available_languages('{wordlist}') 查看已收录语种）")
     root = str(d.resolve())
     key = (root, lang, wordlist)
     if key not in _CACHE:
@@ -158,28 +167,43 @@ def load(lang: str, wordlist: str = "small") -> BandList:
 
 
 def word_frequency(word: str, lang: str) -> float:
-    """单词在语种中的频率估计（0.0 表示不在词表）。"""
-    return load(lang).frequency(word)
+    """单词在语种中的频率估计（0.0 表示不在词表）。
+
+    自动选档：small → middle → large，取第一个收录该语种的档位。"""
+    return _load_auto(lang).frequency(word)
 
 
 def top_n_list(lang: str, n: int) -> list[str]:
-    """语种最高频的前 n 个词。"""
-    return load(lang).top_n(n)
+    """语种最高频的前 n 个词（自动选档，同 :func:`word_frequency`）。"""
+    return _load_auto(lang).top_n(n)
 
 
 def iter_wordlist(lang: str):
-    """按频率从高到低迭代 ``(word, freq)``。"""
-    yield from load(lang)
+    """按频率从高到低迭代 ``(word, freq)``（自动选档）。"""
+    yield from _load_auto(lang)
 
 
 def get_frequency_dict(lang: str, min_cb: int = 0, max_cb: int = N_BANDS) -> dict[str, float]:
-    """语种词频字典（可用 centibel 区间截取）。"""
-    return dict(load(lang).slice(min_cb, max_cb))
+    """语种词频字典（自动选档；可用 centibel 区间截取）。"""
+    return dict(_load_auto(lang).slice(min_cb, max_cb))
 
 
 def slice_words(lang: str, min_cb: int = 0, max_cb: int = N_BANDS) -> list[str]:
-    """频段切片（模块级）：返回 cb ∈ [min_cb, max_cb) 的词。"""
-    return load(lang).words(min_cb, max_cb)
+    """频段切片（自动选档）：返回 cb ∈ [min_cb, max_cb) 的词。"""
+    return _load_auto(lang).words(min_cb, max_cb)
+
+
+def _load_auto(lang: str) -> BandList:
+    """自动选档加载：small → middle → large，取第一个收录该语种的档；
+    本地缺失时先按需下载。三档均未收录则抛 :class:`KeyError`。"""
+    d = get_data_dir()
+    for _ in range(2):  # 第二轮 = 触发下载后再找
+        for t in TIERS:
+            if (d / f"data_{t}" / f"{t}_{lang}.msgpack.gz").exists():
+                return load(lang, t)
+        _download([lang], data_dir=d)
+    raise KeyError(f"{lang}: 三档均未收录该语种"
+                   f"（可用 available_languages 查看各档语种表）")
 
 
 def json_load(path: Path):

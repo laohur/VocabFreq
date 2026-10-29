@@ -1,4 +1,10 @@
-# 数据只有一份，不进仓库（data/ 内含构建产物与工作文件）
+# 构建产物（可由 scripts/build_datas.py 重新生成）
+data_small/
+data_middle/
+data_large/
+reports/
+
+# 历史遗留（旧版单档管线）
 data/
 
 # 工作文件

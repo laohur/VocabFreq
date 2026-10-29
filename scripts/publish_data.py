@@ -33,6 +33,11 @@ SRC_META = SRC / "meta.json"
 DST_DATA = DST / "data"
 MIN_BYTES = 104_857_600  # 100 MB (1024-based): total source text across sources
 
+# 剔除的语种:simple = Simple English Wikipedia 站点代码,非 ISO 639/BCP-47 语言码,
+# 是英语的易读版;词表与 en 大幅重叠且独有词多为专有名词。构建期源目录已删,
+# 此处再显式排除以防重新分词后被收进发布集(NAMES 亦无此条目,双保险)。
+EXCLUDE = {"simple"}
+
 NAMES = {
     "af": {"name": 'Afrikaans', "native": 'Afrikaans', "name_zh": '南非荷兰语'},
     "am": {"name": 'Amharic', "native": 'አማርኛ', "name_zh": '阿姆哈拉语'},
@@ -122,7 +127,6 @@ NAMES = {
     "sd": {"name": 'Sindhi', "native": 'سنڌي', "name_zh": '信德语'},
     "sh": {"name": 'Serbo-Croatian', "native": 'srpskohrvatski', "name_zh": '塞尔维亚-克罗地亚语'},
     "si": {"name": 'Sinhala', "native": 'සිංහල', "name_zh": '僧伽罗语'},
-    "simple": {"name": 'Simple English', "native": 'Simple English', "name_zh": '简明英语'},
     "sk": {"name": 'Slovak', "native": 'slovenčina', "name_zh": '斯洛伐克语'},
     "sl": {"name": 'Slovenian', "native": 'slovenščina', "name_zh": '斯洛文尼亚语'},
     "so": {"name": 'Somali', "native": 'Soomaaliga', "name_zh": '索马里语'},
@@ -134,7 +138,7 @@ NAMES = {
     "te": {"name": 'Telugu', "native": 'తెలుగు', "name_zh": '泰卢固语'},
     "tg": {"name": 'Tajik', "native": 'тоҷикӣ', "name_zh": '塔吉克语'},
     "th": {"name": 'Thai', "native": 'ไทย', "name_zh": '泰语'},
-    "tl": {"name": 'Tagalog', "native": 'Tagalog', "name_zh": '他加禄语'},
+    "fil": {"name": 'Tagalog', "native": 'Tagalog', "name_zh": '他加禄语'},
     "tr": {"name": 'Turkish', "native": 'Türkçe', "name_zh": '土耳其语'},
     "tt": {"name": 'Tatar', "native": 'татарча', "name_zh": '塔塔尔语'},
     "ug": {"name": 'Uyghur', "native": 'ئۇيغۇرچە', "name_zh": '维吾尔语'},
@@ -207,6 +211,8 @@ def main():
 
     selected = []
     for code, lm in langs.items():
+        if code in EXCLUDE:
+            continue
         total_bytes = sum(s["text_bytes"] for s in lm["sources"].values())
         if total_bytes > MIN_BYTES:
             selected.append((code, total_bytes))

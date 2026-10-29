@@ -20,10 +20,17 @@ from pathlib import Path
 
 REPO_ID = "vocabradar/VocabFreq"
 REVISION = "main"
+# 三档词表：数据集内目录 data_<tier>/<tier>_<code>.msgpack.gz
+TIERS = ("small", "middle", "large")
 DEFAULT_ENDPOINT = "https://hf-mirror.com"
 ENV_ENDPOINT = "VOCABFREQ_ENDPOINT"
 ENV_DATA = "VOCABFREQ_DATA"
 DEFAULT_DATA_DIR = Path.home() / ".vocabfreq"
+
+
+def rel_path(tier: str, code: str) -> str:
+    """语种 ``code`` 在档位 ``tier`` 下的数据集相对路径。"""
+    return f"data_{tier}/{tier}_{code}.msgpack.gz"
 
 
 def get_endpoint(endpoint: str | None = None) -> str:
@@ -109,8 +116,9 @@ def download(langs: list[str] | None = None, data_dir: str | Path | None = None,
              endpoint: str | None = None) -> Path:
     """下载数据，返回数据目录。
 
-    - ``langs=None``：全部语种（``data/`` 下所有文件）+ meta.json + README.md
-    - ``langs=["en", "zh"]``：只下载这些语种的词表
+    - ``langs=None``：全部语种（三个档位 ``data_small/middle/large`` 下所有文件）
+      + meta.json + README.md
+    - ``langs=["en", "zh"]``：只下载这些语种（在三档中存在的全部词表）
     - ``langs=[]``：只要 meta.json + README.md
     - ``data_dir``：目标目录，缺省取 ``VOCABFREQ_DATA``，再缺省 ``~/.vocabfreq``
     """
@@ -122,13 +130,14 @@ def download(langs: list[str] | None = None, data_dir: str | Path | None = None,
 
     wanted = ["meta.json", "README.md"]
     if langs is None:
-        wanted += sorted(f for f in index if f.startswith("data/"))
+        wanted += sorted(f for f in index
+                         if f.startswith(tuple(f"data_{t}/" for t in TIERS)))
     else:
         for code in langs:
-            rel = f"data/small_{code}.msgpack.gz"
-            if rel not in index:
-                raise KeyError(f"{code}: 数据集中没有该语种（{rel} 不在 files.json）")
-            wanted.append(rel)
+            rels = [rel_path(t, code) for t in TIERS if rel_path(t, code) in index]
+            if not rels:
+                raise KeyError(f"{code}: 数据集中没有任何档位收录该语种")
+            wanted.extend(rels)
 
     for rel in wanted:
         e = index.get(rel)

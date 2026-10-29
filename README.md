@@ -1,44 +1,47 @@
 # VocabFreq
 
-A self-built pipeline that produces word-frequency lists for 350 languages in
-the [rspeer/wordfreq](https://github.com/rspeer/wordfreq) msgpack band format,
-rebuilt from a single pyicu tokenization of three corpus sources:
+A [VocabRadar](https://huggingface.co/vocabradar) project — three-tier
+multi-language word-frequency lists in wordfreq cBpack band format, built
+independently (no merging) from three sources:
 
-- **FineWeb2 HQ+** (filtered web text, 1670+ language variants)
-- **UltraFineWeb L3** (high-education web text, 20+ languages)
-- **Wikipedia** (monthly dumps)
+- **small — [wordfreq](https://github.com/rspeer/wordfreq) 3.0.2 "small" lists**
+  (43 languages, coverage ≥ 1e-6), MIT
+- **middle — Wikipedia top-100k token counts** (347 languages, `simple`
+  excluded), CC BY-SA 3.0 / GFDL
+- **large — [Unicode UniLex](https://github.com/unicode-org/unilex) frequency
+  lists** (1000 languages), Unicode DFS-2016
 
-**Data is not included in this repository.** There is only one copy of the
-data, at `data/wordfreq/` (gitignored); the published dataset and its card
-live in `hf-upload/VocabFreq`.
+**Data is not included in this repository.** Build outputs live in
+`data_small/ data_middle/ data_large/` (gitignored); the release package
+lives in `../hf-upload/VocabFreq` and is published as the HF dataset
+[vocabradar/VocabFreq](https://huggingface.co/datasets/vocabradar/VocabFreq).
 
-自建多语言词频表构建管线，产出 rspeer/wordfreq 风格的 msgpack 频段词表
-（700 个 centibel 频段）。**数据不纳入本仓库**——数据只有一份，位于
-`data/wordfreq/`（已 gitignore）；发布数据集与说明卡片在 `hf-upload/VocabFreq`。
+VocabRadar 出品的三档词频表，三个来源各自成表、互不合并：小档 wordfreq（43 语）、中档维基
+百科 top100k（347 语，剔除 simple）、大档 Unicode UniLex（1000 语）。
+**数据不纳入本仓库**——构建产物在 `data_small/ data_middle/ data_large/`
+（已 gitignore）；发布包在 `../hf-upload/VocabFreq`，已推送为 HF 数据集
+vocabradar/VocabFreq。
 
 ## Pipeline
 
-    scripts/tokenize_one.py    # pyicu BreakIterator tokenization → top100k.txt per lang/source
-    scripts/build_wordfreq.py  # band aggregation → data/wordfreq/data/small_<lang>.msgpack.gz + meta.json
-    scripts/publish_data.py    # select (total source text_bytes > 100 MB) → sync hf-upload/VocabFreq + README tables
+    scripts/build_datas.py     # three sources → per-language TSV (word \t coverage) in data_<tier>/
+    scripts/publish_datas.py   # TSV → cBpack msgpack.gz release in ../hf-upload/VocabFreq (+ README / meta.json / files.json)
+
+Legacy FineWeb2-tokenize pipeline kept under `scripts/` (`tokenize_one.py`,
+`build_wordfreq.py`, `publish_data.py`) and `scripts/dev/` (one-off audit
+scripts with hardcoded local paths).
 
 ## Layout
 
-    scripts/       core pipeline (3 scripts)
+    scripts/       build_datas.py + publish_datas.py (current pipeline); legacy scripts
     scripts/dev/   one-off audit / threshold-sweep scripts (hardcoded local paths)
     vocabfreq/     runtime package (pip installable: `import vocabfreq`)
     tests/         package smoke tests
     docs/          plan.md (design), resource.md (source inventory)
-    data/          gitignored: built data, logs, working files
-
-## Installation
-
-Requires Python 3.10+ and [PyICU][pyicu] (ICU libraries must be present; on
-Debian/Ubuntu: `apt install libicu-dev`).
-
-    pip install PyICU pyarrow msgpack
-
-[pyicu]: https://gitlab.pyicu.org/main/pyicu
+    data_small/    built TSVs, small tier (gitignored)
+    data_middle/   built TSVs, middle tier (gitignored)
+    data_large/    built TSVs, large tier (gitignored)
+    reports/       build reports (stats.json, per-tier CSVs)
 
 ## Package usage
 
@@ -46,47 +49,51 @@ The runtime package (`import vocabfreq`, distribution name `vocabfreq`) only
 needs `msgpack`. The data is not shipped with the package: on first use it is
 downloaded from the HF dataset `vocabradar/VocabFreq` — default mirror
 `https://hf-mirror.com` (override with `VOCABFREQ_ENDPOINT`), cached in
-`~/.vocabfreq` (override with `VOCABFREQ_DATA` or `set_data_dir`). `load(lang)`
-fetches just that language; `vocabfreq.download()` prefetches everything.
-Every file is byte-size and SHA-256 verified against the dataset's
-`files.json`, so downloads are resumable and repeatable.
+`~/.vocabfreq` (override with `VOCABFREQ_DATA` or `set_data_dir`).
+`load(lang)` fetches just that language (all tiers that have it);
+`vocabfreq.download()` prefetches everything. Every file is byte-size and
+SHA-256 verified against the dataset's `files.json`, so downloads are
+resumable and repeatable.
 
     pip install vocabfreq            # or: pip install -e . from the repo
 
     >>> import vocabfreq
-    >>> vocabfreq.word_frequency('的', 'zh')   # auto-downloads zh (≈130 KB) on first use
-    0.0427
+    >>> vocabfreq.word_frequency('的', 'zh')   # auto-tier: small → middle → large
+    0.0617
     >>> vocabfreq.top_n_list('en', 3)
-    ['the', 'of', 'and']
-    >>> wf = vocabfreq.load('fr')         # BandList
+    ['the', 'to', 'and']
+    >>> wf = vocabfreq.load('fr')                      # default small tier (43 langs)
+    >>> wf = vocabfreq.load('aai', wordlist='large')   # UniLex tier (1000 langs)
     >>> wf.slice(100, 200)                # band slicing: cb in [100, 200) -> (word, freq)
     >>> wf.words(0, 100)                  # words only, freq >= 1e-1
     >>> wf.frequency('le'); len(wf); wf[120:130]
 
 Command line (after install, or `python -m vocabfreq`):
 
-    vocabfreq                # download all 111 languages
-    vocabfreq en zh de       # download selected languages
+    vocabfreq                # download all languages (three tiers)
+    vocabfreq en zh de       # download selected languages (all tiers that have them)
     vocabfreq --endpoint https://huggingface.co
 
 API: `download(langs=None, data_dir=None, endpoint=None)`,
 `word_frequency(word, lang)`, `top_n_list(lang, n)`,
 `iter_wordlist(lang)`, `get_frequency_dict(lang, min_cb, max_cb)`,
-`slice_words(lang, min_cb, max_cb)`, `available_languages()`,
-`load(lang) -> BandList` (`.slice / .words / .top_n / .frequency / bands[i:j]`).
+`slice_words(lang, min_cb, max_cb)`, `available_languages(tier='small')`,
+`load(lang, wordlist='small') -> BandList`
+(`.slice / .words / .top_n / .frequency / bands[i:j]`).
 
 ## Data format
 
-Each file `data/wordfreq/data/small_<lang>.msgpack.gz` is a gzipped
-MessagePack array `[header, band_0, …, band_699]`, where band *b* holds the
-words whose frequency rounds to 10^(−b/100) (centibel *b*). The header
-contains the build tag and language metadata. This matches the upstream
-wordfreq layout, except that the band count is 700 instead of 699.
-
-Selection rule: a language is published when its total source text volume
-exceeds 100 MB (104,857,600 bytes) across sources.
+Each file `data_<tier>/<tier>_<lang>.msgpack.gz` is a wordfreq cBpack: a
+gzipped MessagePack array `[header, band_0, …, band_600]`, where band *b*
+holds the words whose coverage rounds to 10^(−b/100) (centibel *b*) and the
+header is `{"format": "cB", "version": 1}`. Files are readable with
+`wordfreq.read_cBpack`. Only words with coverage ≥ 1e-6 (cB ≤ 600) are kept,
+so each list has 601 bands. Cleaning rules (`unparsable` / `invalid` /
+`duplicate` / `below_threshold`) and per-language stats are in the dataset
+`meta.json`; every file is listed with size + SHA-256 in `files.json`.
 
 ## License
 
-Code: MIT (see [LICENSE](./LICENSE)). The band-format design follows
-rspeer/wordfreq (Apache-2.0); no upstream data or code is included.
+Code: MIT (see [LICENSE](./LICENSE)). Dataset licenses differ per tier:
+wordfreq small — MIT; Wikipedia middle — CC BY-SA 3.0 / GFDL; UniLex large —
+Unicode DFS-2016. See the HF dataset card for details.
