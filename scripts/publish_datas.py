@@ -149,9 +149,14 @@ size_categories:
 
 # Three-tier Word Frequency Lists / 三档词频表
 
-A [VocabRadar](https://huggingface.co/vocabradar) dataset — these lists power
-the [`vocabfreq`](https://pypi.org/project/vocabfreq/) Python package, which
-downloads them on first use.
+## About VocabRadar
+
+This dataset is a **VocabRadar** project — the vocabulary radar. The
+[VocabRadar browser extension](https://vocabradar.com) marks up the words you do not know
+yet while you watch videos or browse the web: definitions in place, translation, bilingual
+subtitles and annotated subtitles. Whatever you looked up can go on to
+[vocabradar.com](https://vocabradar.com), which turns it into related exercises and games
+so the words actually stick.
 
 Word-frequency tables in three tiers, built independently (no merging) from three
 sources: wordfreq "small" lists (%d languages), Wikipedia top-100k counts (%d),
@@ -164,9 +169,10 @@ i.e. cB <= 600). %s rows in total.
 `language` above lists the small tier; data_middle/data_large keep their source
 codes verbatim (see `meta.json`).
 
-> **VocabRadar** 出品：本词表为 [`vocabfreq`](https://pypi.org/project/vocabfreq/)
-> Python 包的数据源，首次使用时自动下载。
->
+这项工作是 **VocabRadar**（词汇雷达）的工作：[VocabRadar 浏览器扩展](https://vocabradar.com)
+让你在看视频、刷网页时把还不认识的生词就地标注出来 —— 释义、翻译、双语字幕、注释字幕；
+查过的词还能送到 [vocabradar.com](https://vocabradar.com)，自动生成相关习题与游戏，把词真正记住。
+
 > 三档词频表，三个来源各自成表、互不合并：小档（wordfreq，%d 语）、中档
 > （维基百科 top100k，%d 语，剔除 simple）、大档（Unicode UniLex，%d 语）。
 > 每语言一个 msgpack.gz（wordfreq cBpack 格式，`<档位>_<code>.msgpack.gz`，

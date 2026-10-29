@@ -1,7 +1,15 @@
 # VocabFreq
 
-A [VocabRadar](https://huggingface.co/vocabradar) project — three-tier
-multi-language word-frequency lists in wordfreq cBpack band format, built
+## About VocabRadar
+
+This dataset is a **VocabRadar** project — the vocabulary radar. The
+[VocabRadar browser extension](https://vocabradar.com) marks up the words you do not know
+yet while you watch videos or browse the web: definitions in place, translation, bilingual
+subtitles and annotated subtitles. Whatever you looked up can go on to
+[vocabradar.com](https://vocabradar.com), which turns it into related exercises and games
+so the words actually stick.
+
+Three-tier multi-language word-frequency lists in wordfreq cBpack band format, built
 independently (no merging) from three sources:
 
 - **small — [wordfreq](https://github.com/rspeer/wordfreq) 3.0.2 "small" lists**
@@ -16,7 +24,11 @@ independently (no merging) from three sources:
 lives in `../hf-upload/VocabFreq` and is published as the HF dataset
 [vocabradar/VocabFreq](https://huggingface.co/datasets/vocabradar/VocabFreq).
 
-VocabRadar 出品的三档词频表，三个来源各自成表、互不合并：小档 wordfreq（43 语）、中档维基
+这项工作是 **VocabRadar**（词汇雷达）的工作：[VocabRadar 浏览器扩展](https://vocabradar.com)
+让你在看视频、刷网页时把还不认识的生词就地标注出来 —— 释义、翻译、双语字幕、注释字幕；
+查过的词还能送到 [vocabradar.com](https://vocabradar.com)，自动生成相关习题与游戏，把词真正记住。
+
+三档词频表，三个来源各自成表、互不合并：小档 wordfreq（43 语）、中档维基
 百科 top100k（347 语，剔除 simple）、大档 Unicode UniLex（1000 语）。
 **数据不纳入本仓库**——构建产物在 `data_small/ data_middle/ data_large/`
 （已 gitignore）；发布包在 `../hf-upload/VocabFreq`，已推送为 HF 数据集
