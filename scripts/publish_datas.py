@@ -27,13 +27,16 @@ STATS = ROOT / "reports" / "build_datas" / "stats.json"
 TIERS = ("data_small", "data_middle", "data_large")
 
 TIER_DESC = {
-    "data_small": ("wordfreq 3.0.2 small lists (cBpack msgpack.gz)",
-                   "MIT (upstream wordfreq)"),
-    "data_middle": ("Wikipedia top-100k token counts + meta.json total_tokens",
-                    "CC BY-SA 3.0 / GFDL (Wikipedia)"),
+    "data_small": ("HF dataset vocabradar/wordfreq: cleaned wordfreq small lists "
+                   "(43 languages, coverage >= 1e-6)", "MIT"),
+    "data_middle": ("HF dataset omarkamali/wikipedia-monthly (20261001 snapshot): "
+                    "Wikipedia text tokenized with pyicu, per-language top-100k "
+                    "token counts + corpus total_tokens", "CC BY-SA 3.0 / GFDL (Wikipedia)"),
     "data_large": ("Unicode UniLex frequency (per-billion scaled crawl counts)",
                    "Unicode DFS-2016"),
 }
+
+HF_URL = "https://huggingface.co/datasets/vocabradar/VocabFreq"
 
 
 def sha256(path: Path) -> str:
@@ -105,7 +108,8 @@ def lang_table(tier: str, stats: dict) -> str:
                 first, fl = head[0], f"{float(head[1]):.2e}"
         en, nat = lang_names(code)
         lines.append(
-            f"| {code} | {en} | {nat} | {first} | {fl} "
+            f"| [{code}]({HF_URL}/resolve/main/{tier}/"
+            f"{tier.removeprefix('data_')}_{code}.msgpack.gz) | {en} | {nat} | {first} | {fl} "
             f"| {s['kept']:,} | {s['coverage']*100:.1f}% |")
     lines.append(f"<!-- END GENERATED LANGUAGE TABLE:{tier} -->")
     return "\n".join(lines)
@@ -154,13 +158,15 @@ size_categories:
 This dataset is a **VocabRadar** project — the vocabulary radar. The
 [VocabRadar browser extension](https://vocabradar.com) marks up the words you do not know
 yet while you watch videos or browse the web: definitions in place, translation, bilingual
-subtitles and annotated subtitles. Whatever you looked up can go on to
+subtitles and annotated subtitles. Whatever you watched can go on to
 [vocabradar.com](https://vocabradar.com), which turns it into related exercises and games
 so the words actually stick.
 
 Word-frequency tables in three tiers, built independently (no merging) from three
-sources: wordfreq "small" lists (%d languages), Wikipedia top-100k counts (%d),
-and Unicode UniLex frequency lists (%d). One gzip-compressed MessagePack file
+sources: the cleaned [vocabradar/wordfreq](https://huggingface.co/datasets/vocabradar/wordfreq)
+small lists (%d languages), the [omarkamali/wikipedia-monthly](https://huggingface.co/datasets/omarkamali/wikipedia-monthly)
+Wikipedia top-100k token counts (%d), and [Unicode UniLex](https://github.com/unicode-org/unilex)
+frequency lists (%d). One gzip-compressed MessagePack file
 per language in wordfreq cBpack format (`<tier>_<code>.msgpack.gz`, readable via
 `wordfreq.read_cBpack`), where a word's coverage (share of corpus tokens) is
 stored as centibels: coverage = 10^(-cB/100), bucket index = cB. A word is kept
@@ -171,10 +177,12 @@ codes verbatim (see `meta.json`).
 
 这项工作是 **VocabRadar**（词汇雷达）的工作：[VocabRadar 浏览器扩展](https://vocabradar.com)
 让你在看视频、刷网页时把还不认识的生词就地标注出来 —— 释义、翻译、双语字幕、注释字幕；
-查过的词还能送到 [vocabradar.com](https://vocabradar.com)，自动生成相关习题与游戏，把词真正记住。
+看过的内容还能送到 [vocabradar.com](https://vocabradar.com)，自动生成相关习题与游戏，把词真正记住。
 
-> 三档词频表，三个来源各自成表、互不合并：小档（wordfreq，%d 语）、中档
-> （维基百科 top100k，%d 语，剔除 simple）、大档（Unicode UniLex，%d 语）。
+> 三档词频表，三个来源各自成表、互不合并：小档（HF 清洗版
+> [vocabradar/wordfreq](https://huggingface.co/datasets/vocabradar/wordfreq)，%d 语）、
+> 中档（[omarkamali/wikipedia-monthly](https://huggingface.co/datasets/omarkamali/wikipedia-monthly)
+> 维基百科 top100k，%d 语，剔除 simple）、大档（Unicode UniLex，%d 语）。
 > 每语言一个 msgpack.gz（wordfreq cBpack 格式，`<档位>_<code>.msgpack.gz`，
 > 可用 wordfreq.read_cBpack 读取）：词频覆盖率以厘贝存储（覆盖率=10^(-cB/100)，
 > 桶索引=cB），按覆盖率降序构建；仅收录词频达到百万分之一（覆盖率 >= 1e-6，
@@ -216,11 +224,31 @@ letter or mark — pure digits such as ISBNs and pure punctuation), `duplicate`
         md.append("### " + t + "\n\n")
         md.append(lang_table(t, stats[t]))
         md.append("\n\n")
+    md.append("## Python package\n\n"
+              "These lists power the `vocabfreq` Python package. Data is not shipped "
+              "with the package: on first use it is downloaded from this dataset "
+              "(default mirror https://hf-mirror.com, override with `VOCABFREQ_ENDPOINT`), "
+              "cached in `~/.vocabfreq`, and every file is verified against `files.json` "
+              "(byte size + SHA-256).\n\n"
+              "```bash\n"
+              "pip install vocabfreq        # or: pip install -e . from the repo\n"
+              "```\n\n"
+              "```python\n"
+              "import vocabfreq\n"
+              "vocabfreq.word_frequency('的', 'zh')   # 0.0617 (auto-tier: small -> middle -> large)\n"
+              "vocabfreq.top_n_list('en', 3)          # ['the', 'to', 'and']\n"
+              "wf = vocabfreq.load('aai', wordlist='large')\n"
+              "wf.slice(100, 200)                     # band slicing: cb in [100, 200)\n"
+              "vocabfreq.download(['en', 'zh'])       # prefetch\n"
+              "```\n\n")
     md.append("## Sources\n\n"
-              "- data_small: [wordfreq](https://github.com/rspeer/wordfreq) 3.0.2 "
-              'small lists (every word with frequency >= 1e-6), MIT.\n'
-              "- data_middle: Wikipedia top-100k token counts with corpus "
-              "total_tokens from meta.json, CC BY-SA 3.0 / GFDL.\n"
+              "- data_small: HF dataset [vocabradar/wordfreq]"
+              "(https://huggingface.co/datasets/vocabradar/wordfreq) — cleaned wordfreq "
+              "small lists (every word with frequency >= 1e-6), MIT.\n"
+              "- data_middle: HF dataset [omarkamali/wikipedia-monthly]"
+              "(https://huggingface.co/datasets/omarkamali/wikipedia-monthly) "
+              "(20261001 snapshot) — Wikipedia token counts tokenized with pyicu; "
+              "per-language top-100k + corpus total_tokens, CC BY-SA 3.0 / GFDL.\n"
               "- data_large: [Unicode UniLex](https://github.com/unicode-org/unilex) "
               "frequency (Form\\tFrequency, per billion tokens), Unicode DFS-2016.\n")
     return "".join(md)
