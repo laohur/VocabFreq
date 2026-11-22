@@ -2,8 +2,9 @@
 
 数据不随 pip 包分发，运行时按需从数据集仓库
 `vocabradar/VocabFreq <https://huggingface.co/datasets/vocabradar/VocabFreq>`_
-下载。默认走国内镜像 **hf-mirror.com**（环境变量 ``VOCABFREQ_ENDPOINT``
-可切换为 ``https://huggingface.co`` 等官方端点）。
+下载。端点自适应：优先走国内镜像 **hf-mirror.com**（遵从 HF 惯例，环境变量
+``HF_ENDPOINT`` 可指定偏好端点），不可达时自动回退官方
+``https://huggingface.co``，两者互为备份。
 
 所有文件按数据集自带的 ``files.json`` 校验清单逐文件核对字节数与
 SHA-256；已存在且校验通过的文件自动跳过，因此可重复执行、增量补齐。
@@ -23,7 +24,11 @@ REVISION = "main"
 # 三档词表：数据集内目录 data_<tier>/<tier>_<code>.msgpack.gz
 TIERS = ("small", "middle", "large")
 DEFAULT_ENDPOINT = "https://hf-mirror.com"
-ENV_ENDPOINT = "VOCABFREQ_ENDPOINT"
+# 候选端点：交替尝试，任一失败立即换下一个
+ENDPOINTS = (DEFAULT_ENDPOINT, "https://huggingface.co")
+# 记忆本次进程内最近一次成功的端点，后续文件直接从它开始
+_PREFERRED: str | None = None
+ENV_ENDPOINT = "HF_ENDPOINT"  # HF 生态惯例变量（huggingface_hub 同款）
 ENV_DATA = "VOCABFREQ_DATA"
 DEFAULT_DATA_DIR = Path.home() / ".vocabfreq"
 
@@ -34,8 +39,14 @@ def rel_path(tier: str, code: str) -> str:
 
 
 def get_endpoint(endpoint: str | None = None) -> str:
-    """解析下载端点：参数 > 环境变量 ``VOCABFREQ_ENDPOINT`` > hf-mirror 默认。"""
-    return (endpoint or os.environ.get(ENV_ENDPOINT) or DEFAULT_ENDPOINT).rstrip("/")
+    """解析偏好下载端点：参数 > 环境变量 ``HF_ENDPOINT`` > 上次成功的端点 > hf-mirror 默认。"""
+    return (endpoint or os.environ.get(ENV_ENDPOINT) or _PREFERRED
+            or DEFAULT_ENDPOINT).rstrip("/")
+
+
+def _candidates(preferred: str) -> list[str]:
+    """尝试顺序：偏好端点优先，其余候选端点兜底。"""
+    return [preferred, *(e for e in ENDPOINTS if e != preferred)]
 
 
 def resolve_url(path: str, endpoint: str | None = None) -> str:
@@ -52,8 +63,13 @@ def _sha256_file(path: Path) -> str:
 
 
 def _fetch(path: str, dest: Path, expect_bytes: int | None, expect_sha: str | None,
-           endpoint: str) -> Path:
-    """下载单个文件（原子写入）；已存在且校验通过时跳过。"""
+           endpoint: str | None = None) -> Path:
+    """下载单个文件（原子写入）；已存在且校验通过时跳过。
+
+    端点自适应：在候选端点（参数 > ``HF_ENDPOINT`` > 默认镜像、官方）之间
+    **交替尝试**——任一端点失败立即换下一个，不重试到底；每个端点各自
+    指数退避。任一端点成功后，后续文件优先从它开始。
+    """
     if dest.exists() and (
         expect_sha is None or _sha256_file(dest) == expect_sha
     ) and (
@@ -64,34 +80,50 @@ def _fetch(path: str, dest: Path, expect_bytes: int | None, expect_sha: str | No
         dest.unlink()  # 损坏或过期，重新下载
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
-    req = urllib.request.Request(resolve_url(path, endpoint),
-                                 headers={"User-Agent": "vocabfreq"})
-    # 镜像站对匿名请求限流（429），指数退避重试
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp, open(tmp, "wb") as f:
-                h = hashlib.sha256()
-                while True:
-                    chunk = resp.read(1 << 20)
-                    if not chunk:
-                        break
-                    h.update(chunk)
-                    f.write(chunk)
+    eps = _candidates(get_endpoint(endpoint))
+    errors: list[str] = []
+    fails: dict[str, int] = dict.fromkeys(eps, 0)
+    ok = False
+    for _round in range(4):
+        for ep in eps:
+            if fails[ep]:  # 该端点之前失败过，重试前指数退避
+                time.sleep(min(2 ** (fails[ep] - 1), 8))
+            req = urllib.request.Request(resolve_url(path, ep),
+                                         headers={"User-Agent": "vocabfreq"})
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp, open(tmp, "wb") as f:
+                    h = hashlib.sha256()
+                    while True:
+                        chunk = resp.read(1 << 20)
+                        if not chunk:
+                            break
+                        h.update(chunk)
+                        f.write(chunk)
+                ok = True
+                if ep in ENDPOINTS:
+                    global _PREFERRED
+                    _PREFERRED = ep
+                break
+            except urllib.error.HTTPError as e:
+                tmp.unlink(missing_ok=True)
+                if e.code not in (429, 500, 502, 503, 504):
+                    raise RuntimeError(
+                        f"从 {ep} 下载 {path} 失败：HTTP {e.code}。请检查语种代码/路径，"
+                        f"或设置 {ENV_ENDPOINT}=https://huggingface.co 切换官方端点。"
+                    ) from e
+                fails[ep] += 1
+                errors.append(f"{ep}: HTTP {e.code}")  # 限流/5xx，交替换端点+退避
+            except urllib.error.URLError as e:
+                tmp.unlink(missing_ok=True)
+                fails[ep] += 1
+                errors.append(f"{ep}: {getattr(e, 'reason', e)}")  # 网络不通，立即换端点
+        if ok:
             break
-        except urllib.error.HTTPError as e:
-            tmp.unlink(missing_ok=True)
-            if e.code not in (429, 500, 502, 503, 504) or attempt == 3:
-                raise RuntimeError(
-                    f"从 {endpoint} 下载 {path} 失败：HTTP {e.code}。请稍后重试，"
-                    f"或设置 {ENV_ENDPOINT}=https://huggingface.co 切换官方端点。"
-                ) from e
-            time.sleep(2 ** attempt)
-        except urllib.error.URLError as e:
-            tmp.unlink(missing_ok=True)
-            raise RuntimeError(
-                f"从 {endpoint} 下载 {path} 失败：{e}。请检查网络/代理，"
-                f"或设置 {ENV_ENDPOINT}=https://huggingface.co 切换官方端点。"
-            ) from e
+    else:
+        raise RuntimeError(
+            f"下载 {path} 失败（已交替尝试端点：{'、'.join(eps)}）：{'；'.join(errors)}。"
+            f"请检查网络/代理，或设置 {ENV_ENDPOINT} 指定可达端点。"
+        )
     if expect_bytes is not None and tmp.stat().st_size != expect_bytes:
         size = tmp.stat().st_size
         tmp.unlink()
@@ -125,8 +157,7 @@ def download(langs: list[str] | None = None, data_dir: str | Path | None = None,
     root = Path(data_dir) if data_dir else (
         Path(os.environ[ENV_DATA]) if os.environ.get(ENV_DATA) else DEFAULT_DATA_DIR
     )
-    ep = get_endpoint(endpoint)
-    index = _files_index(root, ep)
+    index = _files_index(root, endpoint)
 
     wanted = ["meta.json", "README.md"]
     if langs is None:
@@ -141,5 +172,5 @@ def download(langs: list[str] | None = None, data_dir: str | Path | None = None,
 
     for rel in wanted:
         e = index.get(rel)
-        _fetch(rel, root / rel, e and e.get("bytes"), e and e.get("sha256"), ep)
+        _fetch(rel, root / rel, e and e.get("bytes"), e and e.get("sha256"), endpoint)
     return root

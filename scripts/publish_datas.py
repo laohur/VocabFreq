@@ -192,7 +192,8 @@ codes verbatim (see `meta.json`).
 
 These lists power the `vocabfreq` Python package. Data is not shipped
 with the package: on first use it is downloaded from this dataset
-(default mirror https://hf-mirror.com, override with `VOCABFREQ_ENDPOINT`),
+(default mirror https://hf-mirror.com, override with `HF_ENDPOINT`,
+auto-fallback to https://huggingface.co),
 cached in `~/.vocabfreq`, and every file is verified against `files.json`
 (byte size + SHA-256).
 

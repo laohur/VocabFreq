@@ -12,13 +12,15 @@ from .download import download
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="vocabfreq",
-        description="下载 VocabFreq 词频数据（默认镜像 hf-mirror.com，"
-                    "环境变量 VOCABFREQ_ENDPOINT / VOCABFREQ_DATA 可覆盖端点与目录）",
+        description="下载 VocabFreq 词频数据（端点自适应：默认镜像 hf-mirror.com，"
+                    "不可达时自动回退 huggingface.co；环境变量 HF_ENDPOINT / "
+                    "VOCABFREQ_DATA 可覆盖端点与目录）",
     )
     p.add_argument("langs", nargs="*",
                    help="语种代码（如 en zh）；缺省下载全部语种")
     p.add_argument("--data-dir", help="数据目录（缺省 ~/.vocabfreq）")
-    p.add_argument("--endpoint", help="HF 端点（缺省 https://hf-mirror.com）")
+    p.add_argument("--endpoint", help="偏好 HF 端点（缺省 https://hf-mirror.com，"
+                                      "不可达时自动回退 https://huggingface.co）")
     a = p.parse_args(argv)
     root = download(a.langs or None, a.data_dir, a.endpoint)
     print(f"数据目录: {root}")

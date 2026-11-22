@@ -1,9 +1,10 @@
 """vocabfreq — 自建三档多语言词频表（small/middle/large 共 43/347/1000 语种，
 601 个 centibel 频段，wordfreq cBpack 格式）。
 
-数据不随包分发：首次使用时自动从 Hugging Face（默认 hf-mirror.com 镜像）
+数据不随包分发：首次使用时自动从 Hugging Face（端点自适应：默认
+hf-mirror.com 镜像，不可达时自动回退 huggingface.co）
 按需下载并缓存到 ``~/.vocabfreq``（环境变量 ``VOCABFREQ_DATA`` /
-``VOCABFREQ_ENDPOINT`` 或 :func:`set_data_dir` / :func:`download` 可覆盖）。
+``HF_ENDPOINT`` 或 :func:`set_data_dir` / :func:`download` 可覆盖）。
 
     >>> import vocabfreq
     >>> vocabfreq.download(["zh"])               # 预下载（缺省全部语种）

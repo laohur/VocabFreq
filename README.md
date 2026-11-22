@@ -42,7 +42,8 @@ vocabradar/VocabFreq。
 The runtime package (`import vocabfreq`, distribution name `vocabfreq`) only
 needs `msgpack`. The data is not shipped with the package: on first use it is
 downloaded from the HF dataset `vocabradar/VocabFreq` — default mirror
-`https://hf-mirror.com` (override with `VOCABFREQ_ENDPOINT`), cached in
+`https://hf-mirror.com` (override with `HF_ENDPOINT`; on failure it falls
+back to `https://huggingface.co` automatically), cached in
 `~/.vocabfreq` (override with `VOCABFREQ_DATA` or `set_data_dir`).
 `load(lang)` fetches just that language (all tiers that have it);
 `vocabfreq.download()` prefetches everything. Every file is byte-size and

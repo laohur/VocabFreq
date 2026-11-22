@@ -4,8 +4,9 @@
 MessagePack 数组 ``[header, band_0, ..., band_600]``，band b 内的词频约为
 ``10^(-b/100)``（centibel b）；收录阈值为百万分之一（1e-6，即 cB <= 600，
 共 601 个频段）。文件路径为 ``data_<tier>/<tier>_<lang>.msgpack.gz``。
-数据不随包分发，按需从 Hugging Face（默认 hf-mirror.com
-镜像，见 :mod:`vocabfreq.download`）下载并缓存，目录解析顺序：
+数据不随包分发，按需从 Hugging Face 下载并缓存（端点自适应：默认
+hf-mirror.com 镜像，不可达时自动回退 huggingface.co，见
+:mod:`vocabfreq.download`），目录解析顺序：
 
 1. :func:`set_data_dir` 显式指定
 2. 环境变量 ``VOCABFREQ_DATA``（指向含 ``meta.json`` 的目录）
